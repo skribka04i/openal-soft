@@ -57,6 +57,7 @@ constexpr auto InputElement = 1;
 #if CAN_ENUMERATE
 struct DeviceEntry {
     AudioDeviceID mId;
+    std::string mUID;
     std::string mName;
 };
 
@@ -140,6 +141,28 @@ std::string GetDeviceName(AudioDeviceID devId)
     return devname;
 }
 
+std::string GetDeviceUID(AudioDeviceID devId)
+{
+    std::string devuid;
+    CFStringRef uidRef;
+
+    OSStatus err{GetDevProperty(devId, kAudioDevicePropertyDeviceUID, false, 0,
+        sizeof(uidRef), &uidRef)};
+    if (err == noErr)
+    {
+        const CFIndex propSize{CFStringGetMaximumSizeForEncoding(CFStringGetLength(uidRef),
+            kCFStringEncodingUTF8)};
+        devuid.resize(static_cast<size_t>(propSize)+1, '\0');
+
+        CFStringGetCString(uidRef, &devuid[0], propSize+1, kCFStringEncodingUTF8);
+        CFRelease(uidRef);
+    }
+
+    while(!devuid.back())
+        devuid.pop_back();
+    return devuid;
+}
+
 UInt32 GetDeviceChannelCount(AudioDeviceID devId, bool isCapture)
 {
     UInt32 propSize{};
@@ -195,7 +218,7 @@ void EnumerateDevices(std::vector<DeviceEntry> &list, bool isCapture)
 
     if(defaultId != kAudioDeviceUnknown)
     {
-        newdevs.emplace_back(DeviceEntry{defaultId, GetDeviceName(defaultId)});
+        newdevs.emplace_back(DeviceEntry{defaultId, GetDeviceUID(defaultId), GetDeviceName(defaultId)});
         const auto &entry = newdevs.back();
         TRACE("Got device: %s = ID %u\n", entry.mName.c_str(), entry.mId);
     }
@@ -212,7 +235,7 @@ void EnumerateDevices(std::vector<DeviceEntry> &list, bool isCapture)
         auto numChannels = GetDeviceChannelCount(devId, isCapture);
         if(numChannels > 0)
         {
-            newdevs.emplace_back(DeviceEntry{devId, GetDeviceName(devId)});
+            newdevs.emplace_back(DeviceEntry{devId, GetDeviceUID(devId), GetDeviceName(devId)});
             const auto &entry = newdevs.back();
             TRACE("Got device: %s = ID %u\n", entry.mName.c_str(), entry.mId);
         }
@@ -314,7 +337,7 @@ void CoreAudioPlayback::open(const char *name)
             EnumerateDevices(PlaybackList, false);
 
         auto find_name = [name](const DeviceEntry &entry) -> bool
-        { return entry.mName == name; };
+        { return entry.mName == name || entry.mUID == name; };
         auto devmatch = std::find_if(PlaybackList.cbegin(), PlaybackList.cend(), find_name);
         if(devmatch == PlaybackList.cend())
             throw al::backend_exception{al::backend_error::NoDevice,
@@ -603,7 +626,7 @@ void CoreAudioCapture::open(const char *name)
             EnumerateDevices(CaptureList, true);
 
         auto find_name = [name](const DeviceEntry &entry) -> bool
-        { return entry.mName == name; };
+        { return entry.mName == name || entry.mUID == name; };
         auto devmatch = std::find_if(CaptureList.cbegin(), CaptureList.cend(), find_name);
         if(devmatch == CaptureList.cend())
             throw al::backend_exception{al::backend_error::NoDevice,
