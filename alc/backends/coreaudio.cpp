@@ -310,7 +310,7 @@ void CoreAudioPlayback::open(const char *name)
             &audioDevice);
     else
     {
-        if(PlaybackList.empty())
+        //if(PlaybackList.empty())
             EnumerateDevices(PlaybackList, false);
 
         auto find_name = [name](const DeviceEntry &entry) -> bool
@@ -599,7 +599,7 @@ void CoreAudioCapture::open(const char *name)
             &audioDevice);
     else
     {
-        if(CaptureList.empty())
+        //if(CaptureList.empty())
             EnumerateDevices(CaptureList, true);
 
         auto find_name = [name](const DeviceEntry &entry) -> bool
